@@ -1,10 +1,23 @@
+# ========================
+# React / Client folder
+# ========================
+it114l-finalproj.client/node_modules/
+it114l-finalproj.client/build/
+it114l-finalproj.client/.env
+it114l-finalproj.client/obj/
 
-# Kernel Module Compile Results
-*.mod*
-*.cmd
-.tmp_versions/
-modules.order
-Module.symvers
-Mkfile.old
-dkms.conf
+# ========================
+# ASP.NET Core / Server folder
+# ========================
+it114l-finalproj.Server/bin/
+it114l-finalproj.Server/obj/
+it114l-finalproj.Server/*.env
 
+# ========================
+# Visual Studio / IDE files
+# ========================
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
