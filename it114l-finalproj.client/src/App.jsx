@@ -1,35 +1,35 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import PrivateRoute from './components/PrivateRoute';
+import Home from './pages/Home';
+import BookAppointment from './pages/BookAppointment';
+import AdminLogin from './pages/AdminLogin';
+import Dashboard from './pages/admin/Dashboard';
+import ManageAppointments from './pages/admin/ManageAppointments';
+import ManageDentists from './pages/admin/ManageDentists';
+import ManageServices from './pages/admin/ManageServices';
+import PatientsList from './pages/admin/PatientsList';
+import PatientHistory from './pages/admin/PatientHistory';
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/book" element={<BookAppointment />} />
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/admin" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
+          <Route path="/admin/appointments" element={<PrivateRoute><ManageAppointments /></PrivateRoute>} />
+          <Route path="/admin/dentists" element={<PrivateRoute><ManageDentists /></PrivateRoute>} />
+          <Route path="/admin/services" element={<PrivateRoute><ManageServices /></PrivateRoute>} />
+          <Route path="/admin/patients" element={<PrivateRoute><PatientsList /></PrivateRoute>} />
+          <Route path="/admin/patients/:id/history" element={<PrivateRoute><PatientHistory /></PrivateRoute>} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
+  );
 }
 
-export default App
+export default App;
