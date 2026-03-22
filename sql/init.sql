@@ -41,14 +41,16 @@ CREATE TABLE Admins (
 );
 
 CREATE TABLE Appointments (
-    AppointmentID   INT             PRIMARY KEY IDENTITY(1,1),
-    PatientID       INT             NOT NULL REFERENCES Patients(PatientID),
-    DentistID       INT             NOT NULL REFERENCES Dentists(DentistID),
-    ServiceID       INT             NOT NULL REFERENCES Services(ServiceID),
-    AppointmentDate DATE            NOT NULL,
-    AppointmentTime TIME            NOT NULL,
-    Status          NVARCHAR(20)    NOT NULL DEFAULT 'Pending'
-        CONSTRAINT CK_Appointments_Status CHECK (Status IN ('Pending', 'Approved', 'Completed', 'Cancelled'))
+    AppointmentID    INT             PRIMARY KEY IDENTITY(1,1),
+    PatientID        INT             NOT NULL REFERENCES Patients(PatientID),
+    DentistID        INT             NULL REFERENCES Dentists(DentistID),
+    ServiceID        INT             NOT NULL REFERENCES Services(ServiceID),
+    AppointmentDate  DATE            NOT NULL,
+    AppointmentTime  TIME            NOT NULL,
+    Status           NVARCHAR(20)    NOT NULL DEFAULT 'Pending'
+        CONSTRAINT CK_Appointments_Status CHECK (Status IN ('Pending', 'Approved', 'Completed', 'Cancelled')),
+    ConfirmationCode NVARCHAR(20)    NULL,
+    IsDeleted        BIT             NOT NULL DEFAULT 0
 );
 GO
 

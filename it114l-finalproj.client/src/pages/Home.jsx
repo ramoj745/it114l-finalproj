@@ -7,7 +7,7 @@ export default function Home() {
   return (
     <div className="public-page">
       <div className="home-hero">
-        <span className="tooth-icon">🦷</span>
+        <img src="/logo.png" alt="Abainza Dental Clinic" className="home-logo" />
         <h1 className="clinic-name">Abainza Dental Clinic</h1>
         <p className="clinic-tagline">
           Quality dental care made easy. Book your appointment online in minutes.

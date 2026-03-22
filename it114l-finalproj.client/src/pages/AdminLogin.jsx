@@ -31,7 +31,7 @@ export default function AdminLogin() {
     <div className="public-page">
       <div className="public-card">
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <span style={{ fontSize: '2rem' }}>🦷</span>
+          <img src="/logo.png" alt="Abainza Dental Clinic" style={{ height: 80, objectFit: 'contain', display: 'block', margin: '0 auto 12px' }} />
           <h1 style={{ fontSize: '1.5rem', marginTop: 8 }}>Admin Login</h1>
           <p style={{ marginTop: 4, fontSize: '0.875rem' }}>Abainza Dental Clinic</p>
         </div>

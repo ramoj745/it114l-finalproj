@@ -405,6 +405,9 @@ export default function BookAppointment() {
         <div className="public-page">
             <div className="public-card public-card-wide">
                 <Link to="/" className="back-link">← Back to Home</Link>
+                <div style={{ textAlign: 'center', marginBottom: 20 }}>
+                    <img src="/logo.png" alt="Abainza Dental Clinic" style={{ height: 96, objectFit: 'contain', display: 'block', margin: '0 auto' }} />
+                </div>
                 <h1 style={{ marginBottom: 4 }}>Book an Appointment</h1>
                 <p style={{ marginBottom: 24 }}>Fill in your details and we'll get you scheduled.</p>
 

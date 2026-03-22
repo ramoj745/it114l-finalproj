@@ -116,9 +116,11 @@ a:hover { color: var(--primary-hover); }
   color: var(--text-muted);
   margin-bottom: 36px;
 }
-.home-hero .tooth-icon {
-  font-size: 3.5rem;
-  margin-bottom: 20px;
+.home-hero .home-logo {
+  height: 120px;
+  width: auto;
+  object-fit: contain;
+  margin: 0 auto 20px;
   display: block;
 }
 .home-actions {
@@ -389,13 +391,12 @@ td input, td select { padding: 6px 8px; font-size: 0.85rem; }
   padding: 24px 20px 20px;
   border-bottom: 1px solid rgba(255,255,255,0.07);
 }
-.sidebar-logo {
-  font-size: 0.7rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: #64748b;
-  margin-bottom: 4px;
+.sidebar-logo-img {
+  height: 56px;
+  width: auto;
+  object-fit: contain;
+  margin-bottom: 8px;
+  display: block;
 }
 .sidebar-clinic-name {
   font-size: 1rem;

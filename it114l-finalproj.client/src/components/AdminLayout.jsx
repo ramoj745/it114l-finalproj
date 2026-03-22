@@ -21,7 +21,7 @@ export default function AdminLayout({ title, children }) {
     <div className="admin-layout">
       <aside className="admin-sidebar">
         <div className="sidebar-header">
-          <div className="sidebar-logo">Dental Clinic</div>
+          <img src="/logo.png" alt="Abainza Dental Clinic" className="sidebar-logo-img" />
           <div className="sidebar-clinic-name">Abainza Dental Clinic</div>
         </div>
 

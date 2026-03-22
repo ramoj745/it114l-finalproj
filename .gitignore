@@ -22,4 +22,4 @@ it114l-finalproj.Server/*.env
 *.userosscache
 *.sln.docstates
 .vs/
-/it114l-finalproj.Server/appsettings.json
+

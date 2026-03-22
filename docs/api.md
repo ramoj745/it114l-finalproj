@@ -12,10 +12,10 @@ Base URL: `/api`
 Login and receive a JWT.
 
 **Body:** `{ username, password }`
-**Returns:** `{ token, role, username }`
+**Returns:** `{ token, username }`
 
 ### POST /api/auth/seed *(dev only)*
-Creates the default admin account if no users exist.
+Creates the default admin account if no admins exist.
 - Username: `admin` | Password: `admin123`
 - Change the password immediately after first login.
 
@@ -105,15 +105,15 @@ Returns all appointments for a patient (joined with dentist and service info).
 
 ---
 
-## Users
+## Admins
 
-### GET /api/users `[Auth]`
-Returns all admin accounts (UserID, Username, Role — no password hash).
+### GET /api/admins `[Auth]`
+Returns all admin accounts (AdminID, Username — no password hash).
 
-### POST /api/users `[Auth]`
+### POST /api/admins `[Auth]`
 Creates a new admin account.
 
-**Body:** `{ username, password, role }` — role must be `"Admin"` or `"SuperAdmin"`
+**Body:** `{ username, password }`
 
-### DELETE /api/users/:id `[Auth]`
+### DELETE /api/admins/:id `[Auth]`
 Deletes an admin account. Cannot delete your own account.
