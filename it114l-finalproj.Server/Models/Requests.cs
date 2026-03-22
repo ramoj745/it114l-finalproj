@@ -10,14 +10,14 @@ public record BookAppointmentRequest(
     int DentistID,
     int ServiceID,
     DateTime AppointmentDate,
-    TimeSpan AppointmentTime
+    string AppointmentTime
 );
 
 public record UpdateAppointmentRequest(
     int DentistID,
     int ServiceID,
     DateTime AppointmentDate,
-    TimeSpan AppointmentTime,
+    string AppointmentTime,
     string Status
 );
 

@@ -1,18 +1,24 @@
 using Dapper;
 using it114l_finalproj.Server.Data;
 using it114l_finalproj.Server.Models;
+using it114l_finalproj.Server.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace it114l_finalproj.Server.Controllers;
-
-[ApiController]
-[Route("api/[controller]")]
-public class AppointmentsController : ControllerBase
+namespace it114l_finalproj.Server.Controllers
 {
-    private readonly DbConnectionFactory _db;
+    [ApiController]
+    [Route("api/[controller]")]
+    public class AppointmentsController : ControllerBase
+    {
+        private readonly DbConnectionFactory _db;
+        private readonly IEmailSender _emailSender;
 
-    public AppointmentsController(DbConnectionFactory db) => _db = db;
+        public AppointmentsController(DbConnectionFactory db, IEmailSender emailSender)
+        {
+            _db = db;
+            _emailSender = emailSender;
+        }
 
     [HttpGet]
     [Authorize]
@@ -42,124 +48,255 @@ public class AppointmentsController : ControllerBase
         }
     }
 
-    [HttpGet("{id}")]
-    [Authorize]
-    public async Task<IActionResult> GetById(int id)
-    {
-        try
+        [HttpGet("availability")]
+        public async Task<IActionResult> GetAvailability([FromQuery] int dentistId, [FromQuery] DateTime date)
         {
-            using var conn = _db.CreateConnection();
-            var appointment = await conn.QuerySingleOrDefaultAsync<AppointmentDetail>(@"
-                SELECT
-                    a.AppointmentID, a.PatientID, a.DentistID, a.ServiceID,
-                    a.AppointmentDate, a.AppointmentTime, a.Status,
-                    p.FirstName AS PatientFirstName, p.LastName AS PatientLastName,
-                    ISNULL(d.FirstName, 'No') AS DentistFirstName,
-                    ISNULL(d.LastName, 'Dentist') AS DentistLastName,
-                    s.ServiceName
-                FROM Appointments a
-                LEFT JOIN Patients p ON a.PatientID = p.PatientID
-                LEFT JOIN Dentists d ON a.DentistID = d.DentistID
-                LEFT JOIN Services s ON a.ServiceID = s.ServiceID
-                WHERE a.AppointmentID = @Id",
-                new { Id = id });
-
-            if (appointment == null) return NotFound();
-            return Ok(appointment);
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { message = ex.Message });
-        }
-    }
-
-    // Public — patients book here
-    [HttpPost]
-    public async Task<IActionResult> Book([FromBody] BookAppointmentRequest request)
-    {
-        try
-        {
-            using var conn = _db.CreateConnection();
-
-            // Find existing patient by email or create a new record
-            var patient = await conn.QuerySingleOrDefaultAsync<Patient>(
-                "SELECT * FROM Patients WHERE Email = @Email", new { request.Email });
-
-            int patientId;
-            if (patient == null)
+            try
             {
-                patientId = await conn.ExecuteScalarAsync<int>(@"
-                    INSERT INTO Patients (FirstName, LastName, ContactNumber, Email, DateCreated)
-                    OUTPUT INSERTED.PatientID
-                    VALUES (@FirstName, @LastName, @ContactNumber, @Email, GETDATE())",
-                    new { request.FirstName, request.LastName, request.ContactNumber, request.Email });
+                using var conn = _db.CreateConnection();
+
+                var bookedTimes = await conn.QueryAsync<TimeSpan>(@"
+            SELECT AppointmentTime
+            FROM Appointments
+            WHERE DentistID = @DentistId
+              AND AppointmentDate = @Date
+              AND Status IN ('Pending', 'Approved')
+            ORDER BY AppointmentTime",
+                    new
+                    {
+                        DentistId = dentistId,
+                        Date = date.Date
+                    });
+
+                var result = bookedTimes.Select(t => t.ToString(@"hh\:mm"));
+
+                return Ok(result);
             }
-            else
+            catch (Exception ex)
             {
-                patientId = patient.PatientID;
-                await conn.ExecuteAsync(@"
-                    UPDATE Patients 
-                    SET FirstName = @FirstName, LastName = @LastName, ContactNumber = @ContactNumber
-                    WHERE PatientID = @PatientID",
-                    new { request.FirstName, request.LastName, request.ContactNumber, PatientID = patientId });
+                return StatusCode(500, new { message = ex.Message });
             }
-
-            var appointmentId = await conn.ExecuteScalarAsync<int>(@"
-                INSERT INTO Appointments (PatientID, DentistID, ServiceID, AppointmentDate, AppointmentTime, Status)
-                OUTPUT INSERTED.AppointmentID
-                VALUES (@PatientID, @DentistID, @ServiceID, @AppointmentDate, @AppointmentTime, 'Pending')",
-                new { PatientID = patientId, request.DentistID, request.ServiceID, request.AppointmentDate, request.AppointmentTime });
-
-            return Ok(new { appointmentId, message = "Appointment booked successfully!" });
         }
-        catch (Exception ex)
+        public async Task<IActionResult> Book([FromBody] BookAppointmentRequest request)
         {
-            return StatusCode(500, new { message = ex.Message });
-        }
-    }
+            try
+            {
+                if (!TimeSpan.TryParse(request.AppointmentTime, out TimeSpan apptTime))
+                    return BadRequest(new { message = "Invalid time format. Use HH:mm (24-hour), e.g., 14:30." });
 
-    [HttpPut("{id}")]
-    [Authorize]
-    public async Task<IActionResult> Update(int id, [FromBody] UpdateAppointmentRequest request)
-    {
-        try
-        {
-            using var conn = _db.CreateConnection();
-            var rows = await conn.ExecuteAsync(@"
-                UPDATE Appointments SET
-                    DentistID = @DentistID,
-                    ServiceID = @ServiceID,
-                    AppointmentDate = @AppointmentDate,
-                    AppointmentTime = @AppointmentTime,
-                    Status = @Status
-                WHERE AppointmentID = @Id",
-                new { request.DentistID, request.ServiceID, request.AppointmentDate, request.AppointmentTime, request.Status, Id = id });
+                if (apptTime < new TimeSpan(8, 0, 0) || apptTime > new TimeSpan(18, 30, 0))
+                    return BadRequest(new { message = "Appointments allowed only between 8:00 and 18:30." });
 
-            if (rows == 0) return NotFound();
-            return NoContent();
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { message = ex.Message });
-        }
-    }
+                using var conn = _db.CreateConnection();
 
-    [HttpDelete("{id}")]
-    [Authorize]
-    public async Task<IActionResult> Delete(int id)
-    {
-        try
-        {
-            using var conn = _db.CreateConnection();
-            var rows = await conn.ExecuteAsync(
-                "DELETE FROM Appointments WHERE AppointmentID = @Id", new { Id = id });
+                var clash = await conn.ExecuteScalarAsync<int>(@"
+            SELECT COUNT(1)
+            FROM Appointments
+            WHERE DentistID = @DentistID
+              AND AppointmentDate = @AppointmentDate
+              AND AppointmentTime = @AppointmentTime
+              AND Status IN ('Pending', 'Approved')",
+                    new
+                    {
+                        request.DentistID,
+                        request.AppointmentDate,
+                        AppointmentTime = apptTime
+                    });
 
-            if (rows == 0) return NotFound();
-            return NoContent();
+                if (clash > 0)
+                    return Conflict(new { message = "Timeslot already taken for this dentist." });
+
+                var patient = await conn.QuerySingleOrDefaultAsync<Patient>(@"
+            SELECT TOP 1 *
+            FROM Patients
+            WHERE Email = @Email
+              AND ContactNumber = @ContactNumber",
+                    new
+                    {
+                        request.Email,
+                        request.ContactNumber
+                    });
+
+                int patientId;
+
+                if (patient == null)
+                {
+                    patientId = await conn.ExecuteScalarAsync<int>(@"
+                INSERT INTO Patients (FirstName, LastName, ContactNumber, Email, DateCreated)
+                OUTPUT INSERTED.PatientID
+                VALUES (@FirstName, @LastName, @ContactNumber, @Email, GETDATE())",
+                        new
+                        {
+                            request.FirstName,
+                            request.LastName,
+                            request.ContactNumber,
+                            request.Email
+                        });
+                }
+                else
+                {
+                    patientId = patient.PatientID;
+
+                    await conn.ExecuteAsync(@"
+                UPDATE Patients
+                SET FirstName = @FirstName,
+                    LastName = @LastName
+                WHERE PatientID = @PatientID",
+                        new
+                        {
+                            request.FirstName,
+                            request.LastName,
+                            PatientID = patientId
+                        });
+                }
+
+                var appointmentId = await conn.ExecuteScalarAsync<int>(@"
+            INSERT INTO Appointments (
+                PatientID,
+                DentistID,
+                ServiceID,
+                AppointmentDate,
+                AppointmentTime,
+                Status
+            )
+            OUTPUT INSERTED.AppointmentID
+            VALUES (
+                @PatientID,
+                @DentistID,
+                @ServiceID,
+                @AppointmentDate,
+                @AppointmentTime,
+                'Pending'
+            )",
+                    new
+                    {
+                        PatientID = patientId,
+                        request.DentistID,
+                        request.ServiceID,
+                        request.AppointmentDate,
+                        AppointmentTime = apptTime
+                    });
+
+                return Ok(new
+                {
+                    appointmentId,
+                    message = "Appointment booked successfully and is pending approval."
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
         }
-        catch (Exception ex)
+
+        [HttpPut("{id}")]
+        [Authorize]
+        public async Task<IActionResult> Update(int id, [FromBody] UpdateAppointmentRequest request)
         {
-            return StatusCode(500, new { message = ex.Message });
+            try
+            {
+                if (!TimeSpan.TryParse(request.AppointmentTime, out TimeSpan apptTime))
+                    return BadRequest(new { message = "Invalid time format. Use HH:mm (24-hour), e.g., 14:30." });
+
+                if (apptTime < new TimeSpan(8, 0, 0) || apptTime > new TimeSpan(18, 30, 0))
+                    return BadRequest(new { message = "Appointments allowed only between 8:00 and 18:30." });
+
+                using var conn = _db.CreateConnection();
+
+                var rows = await conn.ExecuteAsync(@"
+                    UPDATE Appointments
+                    SET DentistID = @DentistID,
+                        ServiceID = @ServiceID,
+                        AppointmentDate = @AppointmentDate,
+                        AppointmentTime = @AppointmentTime,
+                        Status = @Status
+                    WHERE AppointmentID = @Id",
+                    new
+                    {
+                        request.DentistID,
+                        request.ServiceID,
+                        request.AppointmentDate,
+                        AppointmentTime = apptTime,
+                        request.Status,
+                        Id = id
+                    });
+
+                if (rows == 0)
+                    return NotFound();
+
+                if (request.Status.Equals("Approved", StringComparison.OrdinalIgnoreCase))
+                {
+                    var appointmentInfo = await conn.QuerySingleOrDefaultAsync<dynamic>(@"
+                        SELECT
+                            p.Email,
+                            p.FirstName,
+                            a.AppointmentDate,
+                            a.AppointmentTime
+                        FROM Appointments a
+                        JOIN Patients p ON a.PatientID = p.PatientID
+                        WHERE a.AppointmentID = @Id",
+                        new { Id = id });
+
+                    if (appointmentInfo != null && !string.IsNullOrWhiteSpace((string)appointmentInfo.Email))
+                    {
+                        var confirmationCode = Guid.NewGuid().ToString("N")[..6].ToUpper();
+
+                        await conn.ExecuteAsync(@"
+                            UPDATE Appointments
+                            SET ConfirmationCode = @ConfirmationCode
+                            WHERE AppointmentID = @Id",
+                            new
+                            {
+                                ConfirmationCode = confirmationCode,
+                                Id = id
+                            });
+
+                        var formattedTime = appointmentInfo.AppointmentTime is TimeSpan ts
+                            ? DateTime.Today.Add(ts).ToString("hh:mm tt")
+                            : appointmentInfo.AppointmentTime.ToString();
+
+                        var subject = "Appointment Approved";
+                        var body = $@"
+                            <p>Hello {appointmentInfo.FirstName},</p>
+                            <p>Your appointment has been approved.</p>
+                            <p><strong>Date:</strong> {((DateTime)appointmentInfo.AppointmentDate):MMMM dd, yyyy}</p>
+                            <p><strong>Time:</strong> {formattedTime}</p>
+                            <p><strong>Confirmation Code:</strong> {confirmationCode}</p>
+                            <p>Please keep this code for your visit.</p>";
+
+                        await _emailSender.SendAsync((string)appointmentInfo.Email, subject, body);
+                    }
+                }
+
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
+        }
+
+        [HttpDelete("{id}")]
+        [Authorize]
+        public async Task<IActionResult> Delete(int id)
+        {
+            try
+            {
+                using var conn = _db.CreateConnection();
+
+                var rows = await conn.ExecuteAsync(
+                    "DELETE FROM Appointments WHERE AppointmentID = @Id",
+                    new { Id = id });
+
+                if (rows == 0)
+                    return NotFound();
+
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
         }
     }
 }
