@@ -99,9 +99,30 @@ public class DentistsController : ControllerBase
         try
         {
             using var conn = _db.CreateConnection();
+
+            // 1. Cancel ALL active appointments
+            await conn.ExecuteAsync(@"
+            UPDATE Appointments
+            SET Status = 'Cancelled'
+            WHERE DentistID = @Id
+            AND Status IN ('Pending', 'Approved')",
+                new { Id = id });
+
+            // 2. Remove dentist from ALL remaining appointments
+            await conn.ExecuteAsync(@"
+            UPDATE Appointments
+            SET DentistID = NULL
+            WHERE DentistID = @Id",
+                new { Id = id });
+
+            // 3. Now delete dentist
             var rows = await conn.ExecuteAsync(
-                "DELETE FROM Dentists WHERE DentistID = @Id", new { Id = id });
-            if (rows == 0) return NotFound();
+                "DELETE FROM Dentists WHERE DentistID = @Id",
+                new { Id = id });
+
+            if (rows == 0)
+                return NotFound();
+
             return NoContent();
         }
         catch (Exception ex)

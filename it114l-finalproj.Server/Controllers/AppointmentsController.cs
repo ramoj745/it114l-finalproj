@@ -26,12 +26,13 @@ public class AppointmentsController : ControllerBase
                     a.AppointmentID, a.PatientID, a.DentistID, a.ServiceID,
                     a.AppointmentDate, a.AppointmentTime, a.Status,
                     p.FirstName AS PatientFirstName, p.LastName AS PatientLastName,
-                    d.FirstName AS DentistFirstName, d.LastName AS DentistLastName,
+                    ISNULL(d.FirstName, 'No') AS DentistFirstName,
+                    ISNULL(d.LastName, 'Dentist') AS DentistLastName,
                     s.ServiceName
                 FROM Appointments a
-                JOIN Patients p ON a.PatientID = p.PatientID
-                JOIN Dentists d ON a.DentistID = d.DentistID
-                JOIN Services s ON a.ServiceID = s.ServiceID
+                LEFT JOIN Patients p ON a.PatientID = p.PatientID
+                LEFT JOIN Dentists d ON a.DentistID = d.DentistID
+                LEFT JOIN Services s ON a.ServiceID = s.ServiceID
                 ORDER BY a.AppointmentDate DESC, a.AppointmentTime DESC");
             return Ok(appointments);
         }
@@ -53,14 +54,16 @@ public class AppointmentsController : ControllerBase
                     a.AppointmentID, a.PatientID, a.DentistID, a.ServiceID,
                     a.AppointmentDate, a.AppointmentTime, a.Status,
                     p.FirstName AS PatientFirstName, p.LastName AS PatientLastName,
-                    d.FirstName AS DentistFirstName, d.LastName AS DentistLastName,
+                    ISNULL(d.FirstName, 'No') AS DentistFirstName,
+                    ISNULL(d.LastName, 'Dentist') AS DentistLastName,
                     s.ServiceName
                 FROM Appointments a
-                JOIN Patients p ON a.PatientID = p.PatientID
-                JOIN Dentists d ON a.DentistID = d.DentistID
-                JOIN Services s ON a.ServiceID = s.ServiceID
+                LEFT JOIN Patients p ON a.PatientID = p.PatientID
+                LEFT JOIN Dentists d ON a.DentistID = d.DentistID
+                LEFT JOIN Services s ON a.ServiceID = s.ServiceID
                 WHERE a.AppointmentID = @Id",
                 new { Id = id });
+
             if (appointment == null) return NotFound();
             return Ok(appointment);
         }
@@ -95,7 +98,8 @@ public class AppointmentsController : ControllerBase
             {
                 patientId = patient.PatientID;
                 await conn.ExecuteAsync(@"
-                    UPDATE Patients SET FirstName = @FirstName, LastName = @LastName, ContactNumber = @ContactNumber
+                    UPDATE Patients 
+                    SET FirstName = @FirstName, LastName = @LastName, ContactNumber = @ContactNumber
                     WHERE PatientID = @PatientID",
                     new { request.FirstName, request.LastName, request.ContactNumber, PatientID = patientId });
             }
@@ -130,6 +134,7 @@ public class AppointmentsController : ControllerBase
                     Status = @Status
                 WHERE AppointmentID = @Id",
                 new { request.DentistID, request.ServiceID, request.AppointmentDate, request.AppointmentTime, request.Status, Id = id });
+
             if (rows == 0) return NotFound();
             return NoContent();
         }
@@ -148,6 +153,7 @@ public class AppointmentsController : ControllerBase
             using var conn = _db.CreateConnection();
             var rows = await conn.ExecuteAsync(
                 "DELETE FROM Appointments WHERE AppointmentID = @Id", new { Id = id });
+
             if (rows == 0) return NotFound();
             return NoContent();
         }
