@@ -54,20 +54,32 @@ public class PatientsController : ControllerBase
         try
         {
             using var conn = _db.CreateConnection();
+
             var history = await conn.QueryAsync<AppointmentDetail>(@"
                 SELECT
-                    a.AppointmentID, a.PatientID, a.DentistID, a.ServiceID,
-                    a.AppointmentDate, a.AppointmentTime, a.Status,
-                    p.FirstName AS PatientFirstName, p.LastName AS PatientLastName,
-                    d.FirstName AS DentistFirstName, d.LastName AS DentistLastName,
+                    a.AppointmentID,
+                    a.PatientID,
+                    a.DentistID,
+                    a.ServiceID,
+                    a.AppointmentDate,
+                    a.AppointmentTime,
+                    a.Status,
+                    a.ConfirmationCode,
+                    a.IsDeleted,
+                    p.FirstName AS PatientFirstName,
+                    p.LastName AS PatientLastName,
+                    p.Email AS PatientEmail,
+                    ISNULL(d.FirstName, 'No') AS DentistFirstName,
+                    ISNULL(d.LastName, 'Dentist') AS DentistLastName,
                     s.ServiceName
                 FROM Appointments a
                 JOIN Patients p ON a.PatientID = p.PatientID
-                JOIN Dentists d ON a.DentistID = d.DentistID
+                LEFT JOIN Dentists d ON a.DentistID = d.DentistID
                 JOIN Services s ON a.ServiceID = s.ServiceID
                 WHERE a.PatientID = @Id
                 ORDER BY a.AppointmentDate DESC, a.AppointmentTime DESC",
                 new { Id = id });
+
             return Ok(history);
         }
         catch (Exception ex)

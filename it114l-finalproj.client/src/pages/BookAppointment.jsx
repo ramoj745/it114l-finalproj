@@ -135,6 +135,8 @@ export default function BookAppointment() {
         return filtered;
     }, [form.appointmentDate, allTimeOptions, todayString]);
 
+    const isTimeDisabled = !form.dentistID || !form.appointmentDate || isSunday(form.appointmentDate);
+
     useEffect(() => {
         api.get('/dentists').then((r) => setDentists(r.data));
         api.get('/services').then((r) => setServices(r.data));
@@ -166,24 +168,6 @@ export default function BookAppointment() {
 
         loadAvailability();
     }, [form.dentistID, form.appointmentDate]);
-
-    useEffect(() => {
-        if (isSunday(form.appointmentDate)) {
-            setForm((prev) => ({ ...prev, appointmentTime: '' }));
-            setFieldErrors((prev) => ({
-                ...prev,
-                appointmentTime: 'The clinic is closed on Sundays.',
-            }));
-        } else {
-            setFieldErrors((prev) => ({
-                ...prev,
-                appointmentTime:
-                    prev.appointmentTime === 'The clinic is closed on Sundays.'
-                        ? ''
-                        : prev.appointmentTime,
-            }));
-        }
-    }, [form.appointmentDate]);
 
     useEffect(() => {
         if (isSunday(form.appointmentDate)) {
@@ -241,7 +225,7 @@ export default function BookAppointment() {
             case 'appointmentTime':
                 if (!value) return 'Please select a preferred time.';
                 if (!isTimeInRange(value)) return 'Please choose a time between 8:00 AM and 6:30 PM.';
-                if (bookedTimes.includes(value)) return 'This time slot is no longer available.';
+                if (bookedTimes.includes(value)) return 'This time slot is already booked for the selected dentist.';
                 if (
                     form.appointmentDate === todayString &&
                     value < getCurrentTimeRoundedUp()
@@ -281,6 +265,20 @@ export default function BookAppointment() {
 
         if (name === 'firstName' || name === 'lastName') {
             nextValue = value.replace(/\s{2,}/g, ' ');
+        }
+
+        if (name === 'dentistID' || name === 'appointmentDate') {
+            setForm((prev) => ({
+                ...prev,
+                [name]: nextValue,
+                appointmentTime: '',
+            }));
+            setFieldErrors((prev) => ({
+                ...prev,
+                [name]: validateField(name, nextValue),
+                appointmentTime: '',
+            }));
+            return;
         }
 
         setForm((prev) => ({ ...prev, [name]: nextValue }));
@@ -394,6 +392,7 @@ export default function BookAppointment() {
             setError('');
             setForm(initialForm);
             setFieldErrors(initialErrors);
+            setBookedTimes([]);
         } catch (err) {
             setError(err.response?.data?.message || 'Something went wrong. Please try again.');
             setSuccess('');
@@ -574,19 +573,26 @@ export default function BookAppointment() {
                         </div>
 
                         <div className="form-group">
-    <label>Preferred Time</label>
-    <select
-        name="appointmentTime"
-        value={isSunday(form.appointmentDate) ? '' : form.appointmentTime}
-        onChange={handleChange}
-        onBlur={handleBlur}
-        required
-        disabled={isSunday(form.appointmentDate)}
-        style={fieldErrors.appointmentTime ? inputErrorStyle : {}}
-    >
-        <option value="">
-            {isSunday(form.appointmentDate) ? 'Closed on Sundays' : 'Select a time'}
-        </option>
+                            <label>Preferred Time</label>
+                            <select
+                                name="appointmentTime"
+                                value={isSunday(form.appointmentDate) ? '' : form.appointmentTime}
+                                onChange={handleChange}
+                                onBlur={handleBlur}
+                                required
+                                disabled={isTimeDisabled}
+                                style={fieldErrors.appointmentTime ? inputErrorStyle : {}}
+                            >
+                                <option value="">
+                                    {!form.dentistID
+                                        ? 'Select a dentist first'
+                                        : !form.appointmentDate
+                                            ? 'Select a date first'
+                                            : isSunday(form.appointmentDate)
+                                                ? 'Closed on Sundays'
+                                                : 'Select a time'}
+                                </option>
+
                                 {availableTimeOptions.map((time) => {
                                     const isBooked = bookedTimes.includes(time.value);
 
@@ -600,17 +606,26 @@ export default function BookAppointment() {
                                         </option>
                                     );
                                 })}
-    </select>
-                            {!isSunday(form.appointmentDate) && fieldErrors.appointmentTime ? (
+                            </select>
+
+                            {!form.dentistID ? (
+                                <small style={{ color: '#667085', marginTop: 6, marginLeft: 8, display: 'block' }}>
+                                    Please select a dentist to view unavailable time slots.
+                                </small>
+                            ) : !form.appointmentDate ? (
+                                <small style={{ color: '#667085', marginTop: 6, marginLeft: 8, display: 'block' }}>
+                                    Please select a date to view unavailable time slots.
+                                </small>
+                            ) : !isSunday(form.appointmentDate) && fieldErrors.appointmentTime ? (
                                 <small style={{ color: '#b42318', marginTop: 6, display: 'block' }}>
                                     {fieldErrors.appointmentTime}
                                 </small>
                             ) : !isSunday(form.appointmentDate) ? (
                                 <small style={{ color: '#667085', marginTop: 6, marginLeft: 8, display: 'block' }}>
-                                    Available from 8:00 AM to 6:30 PM.
+                                    Approved slots are marked as booked.
                                 </small>
                             ) : null}
-</div>
+                        </div>
                     </div>
 
                     <button type="submit" className="btn btn-primary btn-full" disabled={loading}>

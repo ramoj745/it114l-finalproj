@@ -29,6 +29,16 @@ const formatTime = (timeString) => {
     });
 };
 
+const hasAssignedDentist = (a) => {
+    const firstName = (a.dentistFirstName || '').trim().toLowerCase();
+    const lastName = (a.dentistLastName || '').trim().toLowerCase();
+
+    if (a.dentistID === null || a.dentistID === undefined) return false;
+    if (firstName === 'no' && lastName === 'dentist') return false;
+
+    return true;
+};
+
 export default function ManageAppointments() {
     const [appointments, setAppointments] = useState([]);
     const [dentists, setDentists] = useState([]);
@@ -85,7 +95,7 @@ export default function ManageAppointments() {
     const startEdit = (appt) => {
         setEditing(appt.appointmentID);
         setEditForm({
-            dentistID: appt.dentistID,
+            dentistID: hasAssignedDentist(appt) ? appt.dentistID : '',
             serviceID: appt.serviceID,
             appointmentDate: appt.appointmentDate.split('T')[0],
             appointmentTime: appt.appointmentTime.substring(0, 5),
@@ -104,7 +114,7 @@ export default function ManageAppointments() {
 
             await api.put(`/appointments/${id}`, {
                 ...editForm,
-                dentistID: Number(editForm.dentistID),
+                dentistID: editForm.dentistID === '' ? null : Number(editForm.dentistID),
                 serviceID: Number(editForm.serviceID),
                 appointmentTime: editForm.appointmentTime + ':00',
             });
@@ -125,7 +135,7 @@ export default function ManageAppointments() {
 
         try {
             await api.put(`/appointments/${appt.appointmentID}`, {
-                dentistID: appt.dentistID,
+                dentistID: hasAssignedDentist(appt) ? appt.dentistID : null,
                 serviceID: appt.serviceID,
                 appointmentDate: appt.appointmentDate.split('T')[0],
                 appointmentTime: appt.appointmentTime.substring(0, 8),
@@ -163,7 +173,10 @@ export default function ManageAppointments() {
 
     const filteredAppointments = appointments.filter((a) => {
         const patientFullName = `${a.patientFirstName} ${a.patientLastName}`.toLowerCase();
-        const dentistFullName = `Dr. ${a.dentistFirstName} ${a.dentistLastName}`;
+
+        const dentistFullName = hasAssignedDentist(a)
+            ? `Dr. ${a.dentistFirstName} ${a.dentistLastName}`
+            : 'No Dentist Assigned';
 
         const matchesSearch = patientFullName.includes(searchTerm.toLowerCase());
         const matchesStatus = !statusFilter || a.status === statusFilter;
@@ -271,7 +284,11 @@ export default function ManageAppointments() {
                         >
                             <option value="">All Dentists</option>
                             {[...new Set(
-                                appointments.map((a) => `Dr. ${a.dentistFirstName} ${a.dentistLastName}`)
+                                appointments.map((a) =>
+                                    hasAssignedDentist(a)
+                                        ? `Dr. ${a.dentistFirstName} ${a.dentistLastName}`
+                                        : 'No Dentist Assigned'
+                                )
                             )].map((dentist) => (
                                 <option key={dentist} value={dentist}>
                                     {dentist}
@@ -320,6 +337,7 @@ export default function ManageAppointments() {
                                                             setEditForm({ ...editForm, dentistID: e.target.value })
                                                         }
                                                     >
+                                                        <option value="">No Dentist Assigned</option>
                                                         {dentists.map((d) => (
                                                             <option key={d.dentistID} value={d.dentistID}>
                                                                 Dr. {d.firstName} {d.lastName}
@@ -375,7 +393,13 @@ export default function ManageAppointments() {
                                                         }
                                                     >
                                                         {STATUSES.map((s) => (
-                                                            <option key={s}>{s}</option>
+                                                            <option
+                                                                key={s}
+                                                                value={s}
+                                                                disabled={editForm.dentistID === '' && s !== 'Cancelled'}
+                                                            >
+                                                                {s}
+                                                            </option>
                                                         ))}
                                                     </select>
                                                 </td>
@@ -411,7 +435,17 @@ export default function ManageAppointments() {
                                             <>
                                                 <td>{index + 1}</td>
                                                 <td>{a.patientFirstName} {a.patientLastName}</td>
-                                                <td>Dr. {a.dentistFirstName} {a.dentistLastName}</td>
+
+                                                <td>
+                                                    {hasAssignedDentist(a) ? (
+                                                        `Dr. ${a.dentistFirstName} ${a.dentistLastName}`
+                                                    ) : (
+                                                        <span style={{ color: '#b42318', fontWeight: 600 }}>
+                                                            No Dentist Assigned
+                                                        </span>
+                                                    )}
+                                                </td>
+
                                                 <td>{a.serviceName}</td>
                                                 <td>{formatDate(a.appointmentDate)}</td>
                                                 <td>{formatTime(a.appointmentTime)}</td>
@@ -421,7 +455,16 @@ export default function ManageAppointments() {
                                                         className={badgeClass(a.status)}
                                                         value={a.status}
                                                         disabled={updatingStatus === a.appointmentID}
-                                                        onChange={(e) => quickStatusChange(a, e.target.value)}
+                                                        onChange={(e) => {
+                                                            const newStatus = e.target.value;
+
+                                                            if (!hasAssignedDentist(a) && newStatus !== 'Cancelled') {
+                                                                showError('This appointment has no assigned dentist. Please reassign a dentist before marking it as Pending, Approved, or Completed.');
+                                                                return;
+                                                            }
+
+                                                            quickStatusChange(a, newStatus);
+                                                        }}
                                                         style={{
                                                             border: 'none',
                                                             cursor: updatingStatus === a.appointmentID ? 'not-allowed' : 'pointer',
@@ -430,7 +473,13 @@ export default function ManageAppointments() {
                                                         }}
                                                     >
                                                         {STATUSES.map((s) => (
-                                                            <option key={s}>{s}</option>
+                                                            <option
+                                                                key={s}
+                                                                value={s}
+                                                                disabled={!hasAssignedDentist(a) && s !== 'Cancelled'}
+                                                            >
+                                                                {s}
+                                                            </option>
                                                         ))}
                                                     </select>
                                                 </td>

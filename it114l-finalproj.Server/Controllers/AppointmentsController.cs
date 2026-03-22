@@ -20,33 +20,45 @@ namespace it114l_finalproj.Server.Controllers
             _emailSender = emailSender;
         }
 
-    [HttpGet]
-    [Authorize]
-    public async Task<IActionResult> GetAll()
-    {
-        try
+        [HttpGet]
+        [Authorize]
+        public async Task<IActionResult> GetAll()
         {
-            using var conn = _db.CreateConnection();
-            var appointments = await conn.QueryAsync<AppointmentDetail>(@"
-                SELECT
-                    a.AppointmentID, a.PatientID, a.DentistID, a.ServiceID,
-                    a.AppointmentDate, a.AppointmentTime, a.Status,
-                    p.FirstName AS PatientFirstName, p.LastName AS PatientLastName,
-                    ISNULL(d.FirstName, 'No') AS DentistFirstName,
-                    ISNULL(d.LastName, 'Dentist') AS DentistLastName,
-                    s.ServiceName
-                FROM Appointments a
-                LEFT JOIN Patients p ON a.PatientID = p.PatientID
-                LEFT JOIN Dentists d ON a.DentistID = d.DentistID
-                LEFT JOIN Services s ON a.ServiceID = s.ServiceID
-                ORDER BY a.AppointmentDate DESC, a.AppointmentTime DESC");
-            return Ok(appointments);
+            try
+            {
+                using var conn = _db.CreateConnection();
+
+                var appointments = await conn.QueryAsync<AppointmentDetail>(@"
+                    SELECT
+                        a.AppointmentID,
+                        a.PatientID,
+                        a.DentistID,
+                        a.ServiceID,
+                        a.AppointmentDate,
+                        a.AppointmentTime,
+                        a.Status,
+                        a.ConfirmationCode,
+                        a.IsDeleted,
+                        p.FirstName AS PatientFirstName,
+                        p.LastName AS PatientLastName,
+                        p.Email AS PatientEmail,
+                        ISNULL(d.FirstName, 'No') AS DentistFirstName,
+                        ISNULL(d.LastName, 'Dentist') AS DentistLastName,
+                        s.ServiceName
+                    FROM Appointments a
+                    JOIN Patients p ON a.PatientID = p.PatientID
+                    LEFT JOIN Dentists d ON a.DentistID = d.DentistID
+                    JOIN Services s ON a.ServiceID = s.ServiceID
+                    WHERE a.IsDeleted = 0
+                    ORDER BY a.AppointmentDate DESC, a.AppointmentTime DESC");
+
+                return Ok(appointments);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
         }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { message = ex.Message });
-        }
-    }
 
         [HttpGet("availability")]
         public async Task<IActionResult> GetAvailability([FromQuery] int dentistId, [FromQuery] DateTime date)
@@ -56,27 +68,28 @@ namespace it114l_finalproj.Server.Controllers
                 using var conn = _db.CreateConnection();
 
                 var bookedTimes = await conn.QueryAsync<TimeSpan>(@"
-            SELECT AppointmentTime
-            FROM Appointments
-            WHERE DentistID = @DentistId
-              AND AppointmentDate = @Date
-              AND Status IN ('Pending', 'Approved')
-            ORDER BY AppointmentTime",
+                    SELECT AppointmentTime
+                    FROM Appointments
+                    WHERE DentistID = @DentistId
+                      AND AppointmentDate = @Date
+                      AND Status = 'Approved'
+                      AND IsDeleted = 0
+                    ORDER BY AppointmentTime",
                     new
                     {
                         DentistId = dentistId,
                         Date = date.Date
                     });
 
-                var result = bookedTimes.Select(t => t.ToString(@"hh\:mm"));
-
-                return Ok(result);
+                return Ok(bookedTimes.Select(t => t.ToString(@"hh\:mm")));
             }
             catch (Exception ex)
             {
                 return StatusCode(500, new { message = ex.Message });
             }
         }
+
+        [HttpPost]
         public async Task<IActionResult> Book([FromBody] BookAppointmentRequest request)
         {
             try
@@ -90,12 +103,13 @@ namespace it114l_finalproj.Server.Controllers
                 using var conn = _db.CreateConnection();
 
                 var clash = await conn.ExecuteScalarAsync<int>(@"
-            SELECT COUNT(1)
-            FROM Appointments
-            WHERE DentistID = @DentistID
-              AND AppointmentDate = @AppointmentDate
-              AND AppointmentTime = @AppointmentTime
-              AND Status IN ('Pending', 'Approved')",
+                    SELECT COUNT(1)
+                    FROM Appointments
+                    WHERE DentistID = @DentistID
+                      AND AppointmentDate = @AppointmentDate
+                      AND AppointmentTime = @AppointmentTime
+                      AND Status IN ('Pending', 'Approved')
+                      AND IsDeleted = 0",
                     new
                     {
                         request.DentistID,
@@ -106,25 +120,18 @@ namespace it114l_finalproj.Server.Controllers
                 if (clash > 0)
                     return Conflict(new { message = "Timeslot already taken for this dentist." });
 
-                var patient = await conn.QuerySingleOrDefaultAsync<Patient>(@"
-            SELECT TOP 1 *
-            FROM Patients
-            WHERE Email = @Email
-              AND ContactNumber = @ContactNumber",
-                    new
-                    {
-                        request.Email,
-                        request.ContactNumber
-                    });
+                var patient = await conn.QuerySingleOrDefaultAsync<Patient>(
+                    "SELECT * FROM Patients WHERE Email = @Email",
+                    new { request.Email });
 
                 int patientId;
 
                 if (patient == null)
                 {
                     patientId = await conn.ExecuteScalarAsync<int>(@"
-                INSERT INTO Patients (FirstName, LastName, ContactNumber, Email, DateCreated)
-                OUTPUT INSERTED.PatientID
-                VALUES (@FirstName, @LastName, @ContactNumber, @Email, GETDATE())",
+                        INSERT INTO Patients (FirstName, LastName, ContactNumber, Email, DateCreated)
+                        OUTPUT INSERTED.PatientID
+                        VALUES (@FirstName, @LastName, @ContactNumber, @Email, GETDATE())",
                         new
                         {
                             request.FirstName,
@@ -138,36 +145,40 @@ namespace it114l_finalproj.Server.Controllers
                     patientId = patient.PatientID;
 
                     await conn.ExecuteAsync(@"
-                UPDATE Patients
-                SET FirstName = @FirstName,
-                    LastName = @LastName
-                WHERE PatientID = @PatientID",
+                        UPDATE Patients
+                        SET FirstName = @FirstName,
+                            LastName = @LastName,
+                            ContactNumber = @ContactNumber
+                        WHERE PatientID = @PatientID",
                         new
                         {
                             request.FirstName,
                             request.LastName,
+                            request.ContactNumber,
                             PatientID = patientId
                         });
                 }
 
                 var appointmentId = await conn.ExecuteScalarAsync<int>(@"
-            INSERT INTO Appointments (
-                PatientID,
-                DentistID,
-                ServiceID,
-                AppointmentDate,
-                AppointmentTime,
-                Status
-            )
-            OUTPUT INSERTED.AppointmentID
-            VALUES (
-                @PatientID,
-                @DentistID,
-                @ServiceID,
-                @AppointmentDate,
-                @AppointmentTime,
-                'Pending'
-            )",
+                    INSERT INTO Appointments (
+                        PatientID,
+                        DentistID,
+                        ServiceID,
+                        AppointmentDate,
+                        AppointmentTime,
+                        Status,
+                        IsDeleted
+                    )
+                    OUTPUT INSERTED.AppointmentID
+                    VALUES (
+                        @PatientID,
+                        @DentistID,
+                        @ServiceID,
+                        @AppointmentDate,
+                        @AppointmentTime,
+                        'Pending',
+                        0
+                    )",
                     new
                     {
                         PatientID = patientId,
@@ -237,7 +248,7 @@ namespace it114l_finalproj.Server.Controllers
                         WHERE a.AppointmentID = @Id",
                         new { Id = id });
 
-                    if (appointmentInfo != null && !string.IsNullOrWhiteSpace((string)appointmentInfo.Email))
+                    if (appointmentInfo != null && !string.IsNullOrWhiteSpace((string?)appointmentInfo.Email))
                     {
                         var confirmationCode = Guid.NewGuid().ToString("N")[..6].ToUpper();
 
@@ -284,8 +295,10 @@ namespace it114l_finalproj.Server.Controllers
             {
                 using var conn = _db.CreateConnection();
 
-                var rows = await conn.ExecuteAsync(
-                    "DELETE FROM Appointments WHERE AppointmentID = @Id",
+                var rows = await conn.ExecuteAsync(@"
+                    UPDATE Appointments
+                    SET IsDeleted = 1
+                    WHERE AppointmentID = @Id",
                     new { Id = id });
 
                 if (rows == 0)
