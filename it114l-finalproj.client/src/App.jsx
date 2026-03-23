@@ -12,24 +12,68 @@ import PatientsList from './pages/admin/PatientsList';
 import PatientHistory from './pages/admin/PatientHistory';
 
 function App() {
-  return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/book" element={<BookAppointment />} />
-          <Route path="/admin/login" element={<AdminLogin />} />
-          <Route path="/admin" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
-          <Route path="/admin/appointments" element={<PrivateRoute><ManageAppointments /></PrivateRoute>} />
-          <Route path="/admin/dentists" element={<PrivateRoute><ManageDentists /></PrivateRoute>} />
-          <Route path="/admin/services" element={<PrivateRoute><ManageServices /></PrivateRoute>} />
-          <Route path="/admin/patients" element={<PrivateRoute><PatientsList /></PrivateRoute>} />
-          <Route path="/admin/patients/:id/history" element={<PrivateRoute><PatientHistory /></PrivateRoute>} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
-  );
+    return (
+        <AuthProvider>
+            <BrowserRouter>
+                <Routes>
+                    <Route path="/" element={<Home />} />
+                    <Route path="/book" element={<BookAppointment />} />
+                    <Route path="/admin/login" element={<AdminLogin />} />
+
+                    <Route
+                        path="/admin"
+                        element={
+                            <PrivateRoute>
+                                <Dashboard />
+                            </PrivateRoute>
+                        }
+                    />
+                    <Route
+                        path="/admin/appointments"
+                        element={
+                            <PrivateRoute>
+                                <ManageAppointments />
+                            </PrivateRoute>
+                        }
+                    />
+                    <Route
+                        path="/admin/dentists"
+                        element={
+                            <PrivateRoute>
+                                <ManageDentists />
+                            </PrivateRoute>
+                        }
+                    />
+                    <Route
+                        path="/admin/services"
+                        element={
+                            <PrivateRoute>
+                                <ManageServices />
+                            </PrivateRoute>
+                        }
+                    />
+                    <Route
+                        path="/admin/patients"
+                        element={
+                            <PrivateRoute>
+                                <PatientsList />
+                            </PrivateRoute>
+                        }
+                    />
+                    <Route
+                        path="/admin/patients/:id/history"
+                        element={
+                            <PrivateRoute>
+                                <PatientHistory />
+                            </PrivateRoute>
+                        }
+                    />
+
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+            </BrowserRouter>
+        </AuthProvider>
+    );
 }
 
 export default App;
